@@ -1,0 +1,30 @@
+create extension if not exists "pgcrypto";
+
+-- `profiles` already exists in some Supabase starter projects.
+create table if not exists public.profiles (id uuid primary key references auth.users(id) on delete cascade, email text unique, display_name text, created_at timestamptz not null default now());
+alter table public.profiles add column if not exists email text;
+alter table public.profiles add column if not exists display_name text;
+alter table public.profiles add column if not exists created_at timestamptz not null default now();
+create table if not exists public.assessment_submissions (id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade, source_timestamp timestamptz, answers jsonb not null, created_at timestamptz not null default now());
+create table if not exists public.assessment_results (id uuid primary key default gen_random_uuid(), user_id uuid not null unique references auth.users(id) on delete cascade, scores jsonb not null default '{}'::jsonb, recommended_career text, wellness_risk text, scoring_version text not null default 'import-pending', updated_at timestamptz not null default now());
+create table if not exists public.roadmap_resources (id uuid primary key default gen_random_uuid(), career_track text not null, title text not null, resource_type text, description text, url text, sort_order integer default 0);
+create table if not exists public.wellness_resources (id uuid primary key default gen_random_uuid(), risk_level text not null, title text not null, resource_type text, description text, url text);
+create table if not exists public.roadmap_progress (id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade, resource_id uuid references public.roadmap_resources(id) on delete cascade, status text not null default 'not_started', started_at timestamptz, completed_at timestamptz, unique(user_id,resource_id));
+create table if not exists public.pomodoro_sessions (id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade, session_type text not null default 'focus', started_at timestamptz not null default now(), ended_at timestamptz, duration_minutes integer, status text not null default 'completed');
+create unique index if not exists roadmap_resources_track_url_key on public.roadmap_resources (career_track, url);
+create unique index if not exists wellness_resources_risk_title_key on public.wellness_resources (risk_level, title);
+alter table public.profiles enable row level security; alter table public.assessment_submissions enable row level security; alter table public.assessment_results enable row level security; alter table public.roadmap_progress enable row level security; alter table public.pomodoro_sessions enable row level security; alter table public.roadmap_resources enable row level security; alter table public.wellness_resources enable row level security;
+drop policy if exists "own profile" on public.profiles;
+drop policy if exists "own submissions" on public.assessment_submissions;
+drop policy if exists "own results" on public.assessment_results;
+drop policy if exists "own progress" on public.roadmap_progress;
+drop policy if exists "own sessions" on public.pomodoro_sessions;
+drop policy if exists "read roadmap" on public.roadmap_resources;
+drop policy if exists "read wellness" on public.wellness_resources;
+create policy "own profile" on public.profiles for all using (id=auth.uid()) with check (id=auth.uid());
+create policy "own submissions" on public.assessment_submissions for all using (user_id=auth.uid()) with check (user_id=auth.uid());
+create policy "own results" on public.assessment_results for all using (user_id=auth.uid()) with check (user_id=auth.uid());
+create policy "own progress" on public.roadmap_progress for all using (user_id=auth.uid()) with check (user_id=auth.uid());
+create policy "own sessions" on public.pomodoro_sessions for all using (user_id=auth.uid()) with check (user_id=auth.uid());
+create policy "read roadmap" on public.roadmap_resources for select using (auth.role()='authenticated');
+create policy "read wellness" on public.wellness_resources for select using (auth.role()='authenticated');

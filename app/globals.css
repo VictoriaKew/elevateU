@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { @apply border-slate-200; }
+  html { @apply scroll-smooth; }
+  body { @apply bg-[#f7f5fb] text-slate-800 antialiased transition-colors duration-300; background-image: radial-gradient(circle at 10% -10%, rgba(139,92,246,.12), transparent 30%), radial-gradient(circle at 92% 12%, rgba(196,181,253,.16), transparent 25%); }
+  .dark body { @apply bg-[#100d1c] text-violet-50; background-image: radial-gradient(circle at 10% -10%, rgba(124,58,237,.20), transparent 30%), radial-gradient(circle at 90% 8%, rgba(91,33,182,.16), transparent 28%); }
+}
+
+@layer components {
+  .card { @apply rounded-3xl border border-white/70 bg-white/60 shadow-[0_12px_35px_rgba(76,29,149,.08)] backdrop-blur-xl; }
+  .eyebrow { @apply text-xs font-extrabold uppercase tracking-[.18em] text-violet-700; }
+  .button-primary { @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-violet-700 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-violet-200 transition hover:-translate-y-0.5 hover:bg-violet-800; }
+  .button-secondary { @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-violet-200 bg-white px-5 py-3 text-sm font-bold text-violet-800 transition hover:bg-violet-50; }
+  .page-shell { @apply min-h-screen transition-colors duration-300; }
+  .page-content { @apply mx-auto max-w-5xl px-5 py-14 lg:px-8 lg:py-20; }
+  .page-title { @apply mt-3 text-4xl font-black tracking-tight text-ink sm:text-5xl; }
+  .page-lede { @apply mt-4 max-w-2xl leading-7 text-slate-600; }
+}
+
+.glass-nav { border-bottom: 1px solid rgba(124,58,237,.12); background: rgba(255,255,255,.68); backdrop-filter: blur(20px); }
+.hero-glass { position: relative; overflow: hidden; border: 1px solid rgba(255,255,255,.8); border-radius: 32px; background: linear-gradient(135deg, rgba(255,255,255,.72), rgba(245,243,255,.62)); box-shadow: 0 24px 60px rgba(76,29,149,.10); backdrop-filter: blur(20px); }
+.hero-glass::before { content: ""; position: absolute; width: 360px; height: 360px; top: -230px; left: 50%; transform: translateX(-50%); border-radius: 999px; background: rgba(139,92,246,.20); filter: blur(30px); pointer-events: none; }
+.hero-glass > * { position: relative; }
+.hero-title { color: #21133f; font-size: clamp(2.4rem, 5vw, 4.5rem); font-weight: 900; line-height: 1.08; letter-spacing: -.045em; }
+
+/* Shared dark-theme treatment for the existing utility-based pages. */
+.dark .page-shell { background: transparent; }
+.dark .glass-nav { border-color: rgba(167,139,250,.18); background: rgba(16,13,28,.68); }
+.dark .hero-glass { border-color: rgba(196,181,253,.18); background: linear-gradient(135deg, rgba(42,29,69,.76), rgba(25,18,42,.68)); box-shadow: 0 24px 60px rgba(0,0,0,.25); }
+.dark .hero-glass::before { background: rgba(124,58,237,.26); }
+.dark .hero-title { color: #f5f3ff; }
+.dark .card, .dark .bg-white { background-color: rgba(40,28,64,.82) !important; border-color: rgba(221,214,254,.24) !important; }
+.dark .bg-white\/90 { background-color: rgba(16,13,28,.68) !important; }
+.dark .bg-violet-50, .dark .bg-pink-50 { background-color: rgba(124,58,237,.13) !important; }
+.dark .bg-violet-100, .dark .bg-pink-100 { background-color: rgba(167,139,250,.16) !important; }
+.dark .text-ink { color: #f5f3ff !important; }
+.dark .text-slate-600, .dark .text-slate-500 { color: #ddd6fe !important; }
+.dark .text-violet-800, .dark .text-violet-700 { color: #c4b5fd !important; }
+.dark .text-violet-600, .dark .text-violet-500 { color: #d8b4fe !important; }
+.dark .text-pink-950 { color: #fce7f3 !important; }
+.dark .border-violet-100, .dark .border-violet-200, .dark .border-slate-200 { border-color: rgba(221,214,254, .26) !important; }
+.dark .button-secondary { background-color: rgba(62,43,100,.9); color: #f5f3ff; border-color: rgba(221,214,254,.30); }
+.dark .button-secondary:hover { background-color: #563a88; }
+.app-footer { margin-top: auto; border-top: 1px solid rgba(124,58,237,.12); color: #6d5a8c; background: rgba(255,255,255,.32); }
+.dark .app-footer { border-color: rgba(221,214,254,.16); color: #c4b5fd; background: rgba(16,13,28,.28); }
