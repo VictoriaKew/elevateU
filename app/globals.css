@@ -21,6 +21,10 @@
 }
 
 .glass-nav { border-bottom: 1px solid rgba(124,58,237,.12); background: rgba(255,255,255,.68); backdrop-filter: blur(20px); }
+.nav-link { position: relative; padding: .55rem .8rem; border-radius: .7rem; color: #5b667a; transition: color .2s ease, background-color .2s ease, transform .2s ease; }
+.nav-link::after { content: ""; position: absolute; right: .8rem; bottom: .34rem; left: .8rem; height: 2px; border-radius: 999px; background: #7c3aed; transform: scaleX(0); transform-origin: center; transition: transform .2s ease; }
+.nav-link:hover { color: #6d28d9; background: rgba(124,58,237,.08); transform: translateY(-1px); }
+.nav-link:hover::after { transform: scaleX(1); }
 .hero-glass { position: relative; overflow: hidden; border: 1px solid rgba(255,255,255,.8); border-radius: 32px; background: linear-gradient(135deg, rgba(255,255,255,.72), rgba(245,243,255,.62)); box-shadow: 0 24px 60px rgba(76,29,149,.10); backdrop-filter: blur(20px); }
 .hero-glass::before { content: ""; position: absolute; width: 360px; height: 360px; top: -230px; left: 50%; transform: translateX(-50%); border-radius: 999px; background: rgba(139,92,246,.20); filter: blur(30px); pointer-events: none; }
 .hero-glass > * { position: relative; }
@@ -29,6 +33,8 @@
 /* Shared dark-theme treatment for the existing utility-based pages. */
 .dark .page-shell { background: transparent; }
 .dark .glass-nav { border-color: rgba(167,139,250,.18); background: rgba(16,13,28,.68); }
+.dark .nav-link { color: #d8d0e8; }
+.dark .nav-link:hover { color: #f5f3ff; background: rgba(167,139,250,.16); }
 .dark .hero-glass { border-color: rgba(196,181,253,.18); background: linear-gradient(135deg, rgba(42,29,69,.76), rgba(25,18,42,.68)); box-shadow: 0 24px 60px rgba(0,0,0,.25); }
 .dark .hero-glass::before { background: rgba(124,58,237,.26); }
 .dark .hero-title { color: #f5f3ff; }
@@ -37,7 +43,7 @@
 .dark .bg-violet-50, .dark .bg-pink-50 { background-color: rgba(124,58,237,.13) !important; }
 .dark .bg-violet-100, .dark .bg-pink-100 { background-color: rgba(167,139,250,.16) !important; }
 .dark .text-ink { color: #f5f3ff !important; }
-.dark .text-slate-600, .dark .text-slate-500 { color: #ddd6fe !important; }
+.dark .text-slate-700, .dark .text-slate-600, .dark .text-slate-500 { color: #ddd6fe !important; }
 .dark .text-violet-800, .dark .text-violet-700 { color: #c4b5fd !important; }
 .dark .text-violet-600, .dark .text-violet-500 { color: #d8b4fe !important; }
 .dark .text-pink-950 { color: #fce7f3 !important; }
