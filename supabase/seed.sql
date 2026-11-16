@@ -28,6 +28,31 @@ insert into public.roadmap_resources (career_track, title, resource_type, descri
   ('AI/ML Engineer', 'Fast.ai: Practical Deep Learning for Coders', 'Full Course', 'Hands-on deep-learning lessons for coders.', 'https://course.fast.ai/', 4)
 on conflict (career_track, url) do update set title = excluded.title, resource_type = excluded.resource_type, description = excluded.description, sort_order = excluded.sort_order;
 
+-- Career Match content is editable in Supabase Table Editor.
+insert into public.assessment_questions (question_key, prompt, category, sort_order) values
+  ('career_1', 'When building a new software product, what excites you most?', 'career', 1),
+  ('career_2', 'You receive a huge e-commerce dataset. What would you do first?', 'career', 2),
+  ('career_3', 'How do you like to solve a complex technical problem?', 'career', 3),
+  ('career_4', 'An app crashes during a traffic spike. Which role sounds most like you?', 'career', 4),
+  ('career_5', 'Which tools would you be happiest to learn?', 'career', 5),
+  ('break_habit', 'How do you usually handle study breaks?', 'wellness', 6),
+  ('burnout_frequency', 'How often do you feel burned out from studying?', 'wellness', 7)
+on conflict (question_key) do update set prompt = excluded.prompt, category = excluded.category, sort_order = excluded.sort_order;
+
+insert into public.assessment_options (question_id, option_text, career_track, wellness_score, sort_order)
+select q.id, v.option_text, v.career_track, v.wellness_score, v.sort_order
+from (values
+  ('career_1','Crafting the visuals and interactions people use','Frontend Developer',null,1),('career_1','Designing the database, APIs and core logic','Backend Developer',null,2),('career_1','Planning a clear and enjoyable user experience','UI/UX Designer',null,3),('career_1','Finding useful trends in the data','Data Analyst',null,4),('career_1','Automating deployments and cloud infrastructure','DevOps Engineer',null,5),('career_1','Training models to make helpful predictions','AI/ML Engineer',null,6),
+  ('career_2','Clean it and build a dashboard to spot trends','Data Analyst',null,1),('career_2','Build a recommendation engine from it','AI/ML Engineer',null,2),('career_2','Design an interactive chart people can explore','Frontend Developer',null,3),('career_2','Store and query it efficiently in a database','Backend Developer',null,4),('career_2','Make sure the database can scale reliably','DevOps Engineer',null,5),('career_2','Plan the clearest way to present its story','UI/UX Designer',null,6),
+  ('career_3','Experiment with the interface until it feels right','Frontend Developer',null,1),('career_3','Write clean, modular code and optimise the logic','Backend Developer',null,2),('career_3','Research users and prototype a better flow','UI/UX Designer',null,3),('career_3','Analyse evidence and visualise the outcome','Data Analyst',null,4),('career_3','Use mathematical models to find hidden patterns','AI/ML Engineer',null,5),('career_3','Automate repetitive tasks and deployments','DevOps Engineer',null,6),
+  ('career_4','Investigate server logs and database performance','Backend Developer',null,1),('career_4','Tune infrastructure and auto-scaling','DevOps Engineer',null,2),('career_4','Design a reassuring recovery experience for users','UI/UX Designer',null,3),('career_4','Make sure the interface handles the error gracefully','Frontend Developer',null,4),('career_4','Analyse traffic patterns to find the cause','Data Analyst',null,5),('career_4','Build a model to predict future spikes','AI/ML Engineer',null,6),
+  ('career_5','React, TypeScript and Tailwind CSS','Frontend Developer',null,1),('career_5','Java, Node.js, PostgreSQL and APIs','Backend Developer',null,2),('career_5','Figma, user testing and design systems','UI/UX Designer',null,3),('career_5','SQL, Excel, Tableau and Power BI','Data Analyst',null,4),('career_5','AWS, Docker, Kubernetes and Linux','DevOps Engineer',null,5),('career_5','Python, TensorFlow and PyTorch','AI/ML Engineer',null,6),
+  ('break_habit','I keep going until I am exhausted',null,2,1),('break_habit','I take breaks, but they are unplanned',null,1,2),('break_habit','I use a timer or set schedule',null,0,3),('break_habit','I stop when I feel tired',null,0,4),
+  ('burnout_frequency','Almost daily',null,3,1),('burnout_frequency','A few times a week',null,2,2),('burnout_frequency','Mostly before deadlines or exams',null,1,3),('burnout_frequency','Rarely',null,0,4),('burnout_frequency','Never',null,0,5)
+) as v(question_key, option_text, career_track, wellness_score, sort_order)
+join public.assessment_questions q on q.question_key = v.question_key
+on conflict (question_id, option_text) do update set career_track = excluded.career_track, wellness_score = excluded.wellness_score, sort_order = excluded.sort_order;
+
 insert into public.wellness_resources (risk_level, title, resource_type, description, url) values
   ('Low', 'Open Sourcing Mental Illness Handbooks', 'Free Guide', 'Free mental-health handbooks written for people in technology.', 'https://osmihelp.org/resources'),
   ('Low', 'How to Avoid Burnout as a Programmer', 'Article', 'Practical habits for managing stress, screen time and balance.', 'https://www.freecodecamp.org/news/a-coders-guide-to-managing-stress-46f2bbb49a8e/'),
