@@ -1,18 +1,34 @@
 # ElevateU
 
-Standalone Next.js + Supabase application. It has no Softr runtime dependency.
+A personalised career development and student wellness platform that helps university students explore career pathways, access learning resources, and improve their well-being.
 
-## Start locally
+## Key Features
+- Career Assessment
+- Personalised Career Roadmap
+- Wellness Resources
+- Pomodoro Timer
+- Google Login
+- Dark and Light Mode
 
-1. Run `npm install` then copy `.env.example` to `.env.local`.
-2. Create a Supabase project, run [`supabase/schema.sql`](supabase/schema.sql), and enable Google in **Authentication → Providers**. Add `http://localhost:3000/auth/callback` as a redirect URL.
-3. Add the Supabase project URL and anon key to `.env.local`. Keep `SUPABASE_SERVICE_ROLE_KEY` server-side only.
-4. Run `npm run dev`.
+## Tech Stack
+- React / TypeScript
+- Tailwind CSS
+- Supabase
+- Google OAuth
+- Vercel
 
-## Google Sheets import
+## Getting Started
 
-Create a Google Cloud API key restricted to the Google Sheets API and to your spreadsheet. Fill `GOOGLE_SHEETS_API_KEY`, `GOOGLE_SHEETS_ID`, `SUPABASE_SERVICE_ROLE_KEY`, and a random `SHEETS_IMPORT_SECRET` in `.env.local`.
+```bash
+git clone <YOUR_REPOSITORY_URL>
+cd elevateu
+npm install
+npm run dev
+```
 
-To import `RoadMap_Content` or `Wellness`, issue an authenticated server request to `POST /api/import/google-sheets` with JSON `{ "sheet": "RoadMap_Content" }` or `{ "sheet": "Wellness" }` and header `x-import-secret`. The service role and import secret never reach browser code.
+Configure your Supabase environment variables in `.env.local` before running the application.
 
-Before production, export the original Sheet formulas and replace the starter assessment scorer with those exact rules. The existing formulas were not accessible through the Softr connector, so they were intentionally not guessed.
+## Project Status
+Currently under development.
+
+© 2026 ElevateU
