@@ -51,7 +51,7 @@ export default function Assessment() {
     async function loadPreviousResult() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setCheckingPreviousResult(false); return; }
+      if (!user) { location.assign("/login"); return; }
       const { data } = await supabase.from("assessment_results").select("recommended_career,wellness_risk").eq("user_id", user.id).maybeSingle();
       if (data?.recommended_career) setPreviousResult({ career: data.recommended_career, wellness: data.wellness_risk ?? "Low" });
       setCheckingPreviousResult(false);

@@ -31,7 +31,7 @@ export default function Pomodoro() {
     async function loadHistory() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) { location.assign("/login"); return; }
       const { data } = await supabase.from("pomodoro_sessions").select("id,session_type,duration_minutes,ended_at").eq("user_id", user.id).eq("status", "completed").order("ended_at", { ascending: false }).limit(5);
       setHistory(data ?? []);
     }
