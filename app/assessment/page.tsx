@@ -1,73 +1,44 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useEffect, useState, type ReactNode } from "react";
 import { ArrowRight, CheckCircle2, Heart, Sparkles } from "lucide-react";
 import { Nav } from "@/components/nav";
-import { createClient } from "@/lib/supabase/client";
+import { Modal } from "@/components/modal"; import { createClient } from "@/lib/supabase/client";
+import { careers } from "@/lib/careers";
 
 type Option = { id: string; option_text: string; career_track: string | null; wellness_score: number | null; sort_order: number };
 type Question = { id: string; question_key: string; prompt: string; category: "career" | "wellness"; sort_order: number; assessment_options: Option[] };
-type ExistingResult = { career: string; wellness: string };
-
-function riskFromScore(score: number) { return score >= 4 ? "High" : score >= 2 ? "Mid" : "Low"; }
+type ExistingResult = { career: string; wellness: string; activeCareer?: string | null; matchingAnswers?: string[]; tiedCareers?: string[] };
+const tracks = careers.map((career) => career.title);
+const riskFromScore = (score: number) => score >= 4 ? "High" : score >= 2 ? "Mid" : "Low";
 
 export default function Assessment() {
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [result, setResult] = useState<ExistingResult | null>(null);
-  const [previousResult, setPreviousResult] = useState<ExistingResult | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [showRestartWarning, setShowRestartWarning] = useState(false);
-  const complete = questions.length > 0 && questions.every((question) => Boolean(answers[question.id]));
-
-  useEffect(() => {
-    async function load() {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { location.assign("/login"); return; }
-      const [{ data: savedResult }, { data: questionData }] = await Promise.all([
-        supabase.from("assessment_results").select("recommended_career,wellness_risk").eq("user_id", user.id).maybeSingle(),
-        supabase.from("assessment_questions").select("id,question_key,prompt,category,sort_order,assessment_options(id,option_text,career_track,wellness_score,sort_order)").order("sort_order"),
-      ]);
-      if (savedResult?.recommended_career) setPreviousResult({ career: savedResult.recommended_career, wellness: savedResult.wellness_risk ?? "Low" });
-      const prepared = ((questionData ?? []) as Question[]).map((question) => ({ ...question, assessment_options: [...(question.assessment_options ?? [])].sort((a, b) => a.sort_order - b.sort_order) }));
-      setQuestions(prepared);
-      setLoading(false);
-    }
-    load();
-  }, []);
-
-  async function confirmRestart() {
-    const supabase = createClient(); const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    await Promise.all([supabase.from("roadmap_progress").delete().eq("user_id", user.id), supabase.from("assessment_results").delete().eq("user_id", user.id)]);
-    setPreviousResult(null); setShowRestartWarning(false); setAnswers({});
-  }
-
-  async function finish() {
-    if (!complete) return;
-    setSaving(true);
-    const selected = questions.map((question) => ({ question, option: question.assessment_options.find((option) => option.id === answers[question.id]) })).filter((item): item is { question: Question; option: Option } => Boolean(item.option));
-    const scores: Record<string, number> = {};
-    selected.filter((item) => item.question.category === "career").forEach(({ option }) => { if (option.career_track) scores[option.career_track] = (scores[option.career_track] ?? 0) + 1; });
-    const career = Object.entries(scores).sort(([, a], [, b]) => b - a)[0]?.[0] ?? "Career Explorer";
-    const wellness = riskFromScore(selected.filter((item) => item.question.category === "wellness").reduce((total, item) => total + (item.option.wellness_score ?? 0), 0));
+  const [questions, setQuestions] = useState<Question[]>([]); const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [result, setResult] = useState<ExistingResult | null>(null); const [previous, setPrevious] = useState<ExistingResult | null>(null);
+  const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [error, setError] = useState("");
+  const [warning, setWarning] = useState(false); const [retaking, setRetaking] = useState(false);
+  const complete = questions.length > 0 && questions.every((q) => Boolean(answers[q.id]));
+  useEffect(() => { async function load() { const s = createClient(); const { data: { user } } = await s.auth.getUser(); if (!user) { location.assign("/login"); return; }
+    const [{ data: saved }, { data: questionData }] = await Promise.all([s.from("assessment_results").select("recommended_career,wellness_risk,active_career").eq("user_id", user.id).maybeSingle(), s.from("assessment_questions").select("id,question_key,prompt,category,sort_order,assessment_options(id,option_text,career_track,wellness_score,sort_order)").order("sort_order")]);
+    if (saved?.recommended_career) setPrevious({ career: saved.recommended_career, wellness: saved.wellness_risk ?? "Low", activeCareer: saved.active_career });
+    setQuestions(((questionData ?? []) as Question[]).map((q) => ({ ...q, assessment_options: [...(q.assessment_options ?? [])].sort((a, b) => a.sort_order - b.sort_order) }))); setLoading(false);
+  } void load(); }, []);
+  async function finish() { if (!complete) return; setSaving(true); setError(""); const selected = questions.map((question) => ({ question, option: question.assessment_options.find((option) => option.id === answers[question.id]) })).filter((item): item is { question: Question; option: Option } => Boolean(item.option));
+    const scores = Object.fromEntries(tracks.map((track) => [track, 0])) as Record<string, number>; selected.filter((item) => item.question.category === "career").forEach(({ option }) => { if (option.career_track) scores[option.career_track] += 1; });
+    const career = Object.entries(scores).sort(([, a], [, b]) => b - a)[0]?.[0] ?? tracks[0]; const wellnessScore = selected.filter((item) => item.question.category === "wellness").reduce((total, item) => total + (item.option.wellness_score ?? 0), 0); const wellness = riskFromScore(wellnessScore);
     const savedAnswers = Object.fromEntries(selected.map(({ question, option }) => [question.question_key, { prompt: question.prompt, answer: option.option_text }]));
-    const supabase = createClient(); const { data: { user } } = await supabase.auth.getUser();
-    if (user) { await supabase.from("assessment_submissions").insert({ user_id: user.id, answers: savedAnswers }); await supabase.from("assessment_results").upsert({ user_id: user.id, scores, recommended_career: career, wellness_risk: wellness, scoring_version: "supabase-content-v1" }); }
-    setResult({ career, wellness }); setSaving(false);
+    const { data: savedResult, error: saveError } = await createClient().rpc("complete_career_assessment", { p_answers: savedAnswers, p_scores: scores, p_recommended_career: career, p_wellness_score: wellnessScore, p_wellness_risk: wellness, p_scoring_version: "supabase-content-v2" });
+    if (saveError) { setError("We could not save this completed assessment. Please apply the latest Supabase migration and try again."); setSaving(false); return; } const matchingAnswers = selected.filter(({ question, option }) => question.category === "career" && option.career_track === career).map(({ option }) => option.option_text); const tiedCareers = Object.keys(scores).filter((track) => scores[track] === scores[career]); const completed = { career, wellness, activeCareer: savedResult?.active_career, matchingAnswers, tiedCareers }; setPrevious(completed); setResult(completed); setSaving(false);
   }
-
-  if (loading) return <><Nav /><main className="page-shell"><div className="page-content"><p className="text-slate-600">Loading Career Match...</p></div></main></>;
-  if (previousResult && !result) return <><Nav /><main className="page-shell"><div className="page-content max-w-3xl"><section className="card p-8 text-center"><CheckCircle2 className="mx-auto text-violet-700" size={42} /><p className="eyebrow mt-5">Career Match complete</p><h1 className="page-title">You have already completed Career Match.</h1><p className="mx-auto mt-4 max-w-lg leading-7 text-slate-600">Your current direction is <strong>{previousResult.career}</strong>. Continue to your learning roadmap to keep building your progress.</p><div className="mt-7 flex flex-wrap justify-center gap-3"><a href="/roadmap" className="button-primary">Go to learning roadmap <ArrowRight size={17} /></a><button onClick={() => setShowRestartWarning(true)} className="button-secondary">Take the test again</button></div></section>{showRestartWarning && <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-5"><div className="card w-full max-w-md p-7"><h2 className="text-2xl font-black text-ink">Start a new Career Match?</h2><p className="mt-3 leading-7 text-slate-600">Your current career result and learning-roadmap progress will be cleared. This cannot be undone.</p><div className="mt-7 flex flex-wrap justify-end gap-3"><button onClick={() => setShowRestartWarning(false)} className="button-secondary">No, keep my progress</button><button onClick={confirmRestart} className="button-primary">Confirm and start again</button></div></div></div>}</div></main></>;
-  if (result) return <><Nav /><main className="page-shell"><div className="page-content max-w-3xl"><section className="card p-8 text-center"><CheckCircle2 className="mx-auto text-violet-700" size={42} /><p className="eyebrow mt-5">Your starting point</p><h1 className="page-title">{result.career}</h1><p className="mx-auto mt-4 max-w-lg leading-7 text-slate-600">This is a direction to explore, not a final decision. Your learning roadmap is ready, and we have also selected {result.wellness.toLowerCase()}-support resources for your study rhythm.</p><div className="mt-7 flex flex-wrap justify-center gap-3"><a href="/roadmap" className="button-primary">View my roadmap <ArrowRight size={17} /></a><a href="/wellness" className="button-secondary">Visit wellness resources <Heart size={17} /></a></div></section></div></main></>;
-
-  const careerQuestions = questions.filter((question) => question.category === "career");
-  const wellnessQuestions = questions.filter((question) => question.category === "wellness");
-  return <><Nav /><main className="page-shell"><div className="page-content max-w-3xl"><p className="eyebrow">Career Match</p><h1 className="page-title">Discover a direction that fits you.</h1><p className="page-lede">There are no right answers here. Choose what feels most like you today, and we will suggest a path to explore.</p><div className="mt-9 space-y-5">{careerQuestions.map((question, index) => <QuestionCard key={question.id} question={question} number={index + 1} selectedId={answers[question.id]} onSelect={(optionId) => setAnswers((current) => ({ ...current, [question.id]: optionId }))} />)}</div><section className="card mt-5 p-6"><div className="flex items-center gap-3"><span className="rounded-xl bg-violet-100 p-2 text-violet-700"><Heart size={20} /></span><div><p className="font-bold text-ink">A quick wellbeing check-in</p><p className="text-sm text-slate-600">This helps us show useful support resources. It is not a diagnosis.</p></div></div><div className="mt-6 grid gap-6">{wellnessQuestions.map((question) => <QuestionCard key={question.id} question={question} selectedId={answers[question.id]} onSelect={(optionId) => setAnswers((current) => ({ ...current, [question.id]: optionId }))} />)}</div></section>{questions.length === 0 && <p className="mt-8 text-slate-600">Career Match questions have not been added to Supabase yet.</p>}<button disabled={!complete || saving} onClick={finish} className="button-primary mt-6 disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Saving your result..." : <>See my result <Sparkles size={17} /></>}</button></div></main></>;
+  const startRetake = () => { setWarning(false); setRetaking(true); setAnswers({}); setError(""); };
+  if (loading) return <Shell><p className="text-slate-600">Loading Career Match...</p></Shell>;
+  if (previous && !retaking && !result) return <Shell><section className="card p-8 text-center"><CheckCircle2 className="mx-auto text-violet-700" size={42} /><p className="eyebrow mt-5">Career Match complete</p><h1 className="page-title">You have already completed Career Match.</h1><p className="mx-auto mt-4 max-w-lg leading-7 text-slate-600">Your latest recommendation is <strong>{previous.career}</strong>. Previous attempts remain available.</p>{previous.activeCareer && previous.activeCareer !== previous.career && <PathwayGuidance active={previous.activeCareer} recommended={previous.career} />}<div className="mt-7 flex flex-wrap justify-center gap-3"><Link href="/roadmap" className="button-primary">Go to learning roadmap <ArrowRight size={17} /></Link><Link href="/assessment/history" className="button-secondary">Assessment history</Link><button onClick={() => setWarning(true)} className="button-secondary">Take the test again</button></div></section>{warning && <Dialog title="Complete Career Match again?" confirmText="Start new assessment" onCancel={() => setWarning(false)} onConfirm={startRetake}>This creates a new saved attempt; previous history remains available. Nothing changes until it is completed and saved. If your pathway was selected by assessment and the new recommendation changes, its roadmap progress will reset. A manually selected pathway and its progress remain unchanged.</Dialog>}</Shell>;
+  if (result) return <Shell><section className="card p-8 text-center"><CheckCircle2 className="mx-auto text-violet-700" size={42} /><p className="eyebrow mt-5">Your latest recommendation</p><h1 className="page-title">{result.career}</h1><p className="mx-auto mt-4 max-w-lg leading-7 text-slate-600">This is a direction to explore, not a final decision. Your latest wellness check-in is {result.wellness.toLowerCase()} support.</p>{result.matchingAnswers && result.matchingAnswers.length > 0 && <div className="mx-auto mt-6 max-w-xl rounded-2xl bg-violet-50 p-5 text-left"><h2 className="font-bold text-ink">Why this suggestion?</h2><p className="mt-2 text-sm leading-6 text-slate-600">Your answers included these interests associated with {result.career}:</p><ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-600">{result.matchingAnswers.map((answer, index) => <li key={index}>{answer}</li>)}</ul>{result.tiedCareers && result.tiedCareers.length > 1 && <p className="mt-3 text-sm leading-6 text-slate-600">Your answers also tied with {result.tiedCareers.filter((track) => track !== result.career).join(", ")}. You can explore those paths too.</p>}</div>}{result.activeCareer && result.activeCareer !== result.career && <PathwayGuidance active={result.activeCareer} recommended={result.career} />}<div className="mt-7 flex flex-wrap justify-center gap-3"><Link href="/roadmap" className="button-primary">View my roadmap <ArrowRight size={17} /></Link><Link href="/wellness" className="button-secondary">Visit wellness <Heart size={17} /></Link></div></section></Shell>;
+  const careerQuestions = questions.filter((q) => q.category === "career"); const wellnessQuestions = questions.filter((q) => q.category === "wellness");
+  return <Shell><p className="eyebrow">Career Match</p><h1 className="page-title">Discover a direction that fits you.</h1><p className="page-lede">There are no right answers here. Choose what feels most like you today, and we will suggest a path to explore.</p><div className="mt-9 space-y-5">{careerQuestions.map((q, i) => <QuestionCard key={q.id} question={q} number={i + 1} selectedId={answers[q.id]} onSelect={(id) => setAnswers((v) => ({ ...v, [q.id]: id }))} />)}</div><section className="card mt-5 p-6"><div className="flex items-center gap-3"><span className="rounded-xl bg-violet-100 p-2 text-violet-700"><Heart size={20} /></span><div><p className="font-bold text-ink">A quick wellbeing check-in</p><p className="text-sm text-slate-600">This helps us show useful support resources. It is not a diagnosis.</p></div></div><div className="mt-6 grid gap-6">{wellnessQuestions.map((q) => <QuestionCard key={q.id} question={q} selectedId={answers[q.id]} onSelect={(id) => setAnswers((v) => ({ ...v, [q.id]: id }))} />)}</div></section>{error && <p role="alert" className="mt-5 rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}<button disabled={!complete || saving} onClick={finish} className="button-primary mt-6 disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Saving your result..." : <>See my result <Sparkles size={17} /></>}</button><section className="mt-10 border-t border-violet-100 pt-7"><h2 className="text-xl font-black text-ink">Assessment history</h2><p className="mt-2 text-slate-600">Review completed attempts without changing your current pathway.</p><Link href="/assessment/history" className="button-secondary mt-4">View assessment history</Link></section></Shell>;
 }
-
-function QuestionCard({ question, number, selectedId, onSelect }: { question: Question; number?: number; selectedId?: string; onSelect: (id: string) => void }) {
-  return <section className="card p-6"><p className="font-bold text-ink">{number ? `${number}. ` : ""}{question.prompt}</p><div className="mt-4 grid gap-2">{question.assessment_options.map((option) => <button onClick={() => onSelect(option.id)} key={option.id} className={`rounded-xl border p-3 text-left text-sm transition ${selectedId === option.id ? "border-violet-600 bg-violet-50 text-violet-800" : "hover:bg-violet-50"}`}>{option.option_text}</button>)}</div></section>;
-}
+function Shell({ children }: { children: ReactNode }) { return <><Nav /><main className="page-shell"><div className="page-content max-w-3xl">{children}</div></main></>; }
+function PathwayGuidance({ active, recommended }: { active: string; recommended: string }) { return <div className="mx-auto mt-6 max-w-xl rounded-2xl bg-violet-50 p-5 text-left leading-7 text-slate-700"><p>Your active pathway is <strong>{active}</strong>, while your latest recommendation is <strong>{recommended}</strong>. Your current pathway and progress remain unchanged.</p><p className="mt-2">You can finish your current roadmap first, then use <strong>Switch Career Pathway</strong> on the roadmap if you want to try {recommended}. Switching resets your current roadmap progress.</p></div>; }
+function Dialog({ title, children, onCancel, onConfirm, confirmText }: { title: string; children: ReactNode; onCancel: () => void; onConfirm: () => void; confirmText: string }) { return <Modal labelledBy="retake-title" onClose={onCancel}><h2 id="retake-title" className="text-2xl font-black text-ink">{title}</h2><p className="mt-3 leading-7 text-slate-600">{children}</p><div className="mt-7 flex flex-wrap justify-end gap-3"><button onClick={onCancel} className="button-secondary">Cancel</button><button onClick={onConfirm} className="button-primary">{confirmText}</button></div></Modal>; }
+function QuestionCard({ question, number, selectedId, onSelect }: { question: Question; number?: number; selectedId?: string; onSelect: (id: string) => void }) { return <section role="group" aria-label={question.prompt} className="card p-6"><p className="font-bold text-ink">{number ? `${number}. ` : ""}{question.prompt}</p><div className="mt-4 grid gap-2">{question.assessment_options.map((option) => <button onClick={() => onSelect(option.id)} aria-pressed={selectedId === option.id} key={option.id} className={`rounded-xl border p-3 text-left text-sm transition ${selectedId === option.id ? "border-violet-600 bg-violet-50 text-violet-800" : "hover:bg-violet-50"}`}>{option.option_text}</button>)}</div></section>; }
