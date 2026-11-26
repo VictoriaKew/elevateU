@@ -1,40 +1,78 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, Heart, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { BookOpen, ExternalLink, Heart, Play, ShieldCheck } from "lucide-react";
 import { Nav } from "@/components/nav";
-import { createClient } from "@/lib/supabase/client";
-
-type WellnessResource = { id: string; risk_level: string; title: string; resource_type: string | null; description: string | null; url: string | null };
+import { Modal } from "@/components/modal"; import { createClient } from "@/lib/supabase/client";
+type Resource = { id: string; title: string; resource_type: string | null; description: string | null; url: string | null; risk_level?: string | null };
+const extraResources: Resource[] = [
+  { id: "nhs-student-stress", risk_level: "Low", title: "Student stress", resource_type: "Article", description: "Practical ways to manage study stress and find support.", url: "https://www.nhs.uk/mental-health/children-and-young-adults/help-for-teenagers-young-adults-and-students/student-stress-self-help-tips/" },
+  { id: "nhs-worries", risk_level: "Mid", title: "Tackling your worries", resource_type: "Article", description: "Explore practical techniques for managing worries.", url: "https://www.nhs.uk/every-mind-matters/mental-wellbeing-tips/self-help-cbt-techniques/tackling-your-worries/" },
+  { id: "who-stress-guide", risk_level: "High", title: "Doing What Matters in Times of Stress", resource_type: "Free Guide", description: "An illustrated WHO guide to practical stress management skills.", url: "https://www.who.int/publications/i/item/9789240003927" },
+  { id: "nhs-audio-guides", risk_level: "Low", title: "Mental wellbeing audio guides", resource_type: "Free Guide", description: "Free NHS audio guides for wellbeing and relaxation.", url: "https://www.nhs.uk/mental-health/self-help/guides-tools-and-activities/mental-wellbeing-audio-guides/" },
+];
+const cards = [{ title: "Memory Match", description: "A quick, calm matching game for a mental reset.", duration: "2–5 min" }, { title: "Spot the Difference", description: "Find the different symbol in a gentle visual puzzle.", duration: "1–2 min" }, { title: "Number Puzzle", description: "Put the tiles in order at your own pace.", duration: "2–5 min" }];
+function shuffle<T>(items: readonly T[]): T[] {
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+const memoryCards = ["🌿", "🌸", "☀️", "🌙", "🦋", "🌈", "🌿", "🌸", "☀️", "🌙", "🦋", "🌈"];
+const numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+function newNumberRound(previous: number[] = []): number[] {
+  let next: number[];
+  do { next = shuffle(numbers); } while (next.every((item, i) => item === numbers[i]) || next.every((item, i) => item === previous[i]));
+  return next;
+}
 
 export default function Wellness() {
-  const [risk, setRisk] = useState<string | null>(null);
-  const [resources, setResources] = useState<WellnessResource[]>([]);
-  const [type, setType] = useState("All");
-  const [loading, setLoading] = useState(true);
-
+  const [risk, setRisk] = useState<string | null>(null); const [score, setScore] = useState<number | null>(null); const [resources, setResources] = useState<Resource[]>([]); const [loading, setLoading] = useState(true); const [activity, setActivity] = useState("");
+  const [filter, setFilter] = useState<"All" | "Articles" | "Free Guides">("All");
+  const [assessmentDate, setAssessmentDate] = useState<string | null>(null);
+  const [libraryError, setLibraryError] = useState(false);
+  useEffect(() => { async function load() { const s = createClient(); const { data: { user } } = await s.auth.getUser(); if (!user) { location.assign("/login"); return; } const [{ data: result, error }, resourceResult, attemptResult] = await Promise.all([s.from("assessment_results").select("wellness_risk,wellness_score").eq("user_id", user.id).maybeSingle(), s.from("wellness_resources").select("id,title,resource_type,description,url,risk_level").order("title"), s.from("assessment_submissions").select("created_at,wellness_risk,wellness_score").eq("user_id", user.id).not("wellness_risk", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle()]); if (error) { const { data: legacy } = await s.from("assessment_results").select("wellness_risk").eq("user_id", user.id).maybeSingle(); setRisk(legacy?.wellness_risk ?? null); } else { setRisk(result?.wellness_risk ?? null); setScore(result?.wellness_score ?? null); } if (!error && result?.wellness_risk && attemptResult.data && attemptResult.data.wellness_risk === result.wellness_risk && attemptResult.data.wellness_score === result.wellness_score) setAssessmentDate(attemptResult.data.created_at); setResources(resourceResult.data ?? []); setLibraryError(Boolean(resourceResult.error)); setLoading(false); } void load(); }, []);
+  const message = risk === "High" ? "A gentle pause can help. Choose one small, supportive activity today." : risk === "Mid" ? "You are carrying a lot. Make room for a brief reset in your study rhythm." : "Your check-in suggests a steady foundation. Keep making space to recharge.";
+  const library = [...resources, ...extraResources.filter((extra) => !resources.some((resource) => resource.url === extra.url))];
+  const levels: Record<string, number> = { low: 0, mid: 1, high: 2 };
+  const currentLevel = risk ? levels[risk.toLowerCase()] : undefined;
+  const visible = library.filter((resource) => { const resourceLevel = levels[(resource.risk_level ?? "").toLowerCase()]; return (currentLevel === undefined || resourceLevel === undefined || resourceLevel <= currentLevel) && (filter === "All" || (filter === "Articles" ? /article/i.test(resource.resource_type ?? "") : /guide/i.test(resource.resource_type ?? ""))); });
+  return <><Nav /><main className="page-shell"><div className="page-content"><p className="eyebrow">STUDY WELLNESS</p><h1 className="page-title">Take care of your energy, too.</h1>{loading ? <p className="mt-6 text-slate-600">Loading your wellness space...</p> : <><section className="card mt-8 p-7"><p className="eyebrow">01 · WELLNESS CHECK-IN</p>{!risk ? <><ShieldCheck className="mt-4 text-pink-700" /><h2 className="mt-4 text-xl font-black text-ink">Your check-in will appear here</h2><p className="mt-2 max-w-xl leading-7 text-slate-600">Complete the Career Assessment to view your latest wellness result. It offers general study support and is not medical advice.</p><Link href="/assessment" className="button-primary mt-5">Go to Career Assessment</Link></> : <div className="mt-5 flex gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-pink-100 text-pink-700"><Heart /></span><div><h2 className="text-xl font-black text-ink">{risk} support level{score !== null ? ` · score ${score}` : ""}</h2><p className="mt-2 leading-7 text-slate-600">{message}</p>{assessmentDate && <p className="mt-2 text-sm text-slate-600">Assessment completed: {new Date(assessmentDate).toLocaleDateString()}</p>}<p className="mt-2 text-sm text-slate-600">This result comes from the wellness questions in your most recently completed Career Assessment. It is general study support, not a diagnosis.</p><Link href="/assessment/history" className="mt-3 inline-flex text-sm font-bold text-violet-700">View assessment history →</Link></div></div>}</section>
+<section className="mt-10"><p className="eyebrow">02 · RECHARGE ACTIVITIES</p><h2 className="mt-2 text-2xl font-black text-ink">Small resets, no pressure.</h2><div className="mt-5 grid gap-5 md:grid-cols-2">{cards.map((card) => <article key={card.title} className="card p-6"><span className="grid h-12 w-12 place-items-center rounded-2xl bg-violet-100 text-violet-700"><Play /></span><p className="mt-5 text-xs font-bold uppercase tracking-wide text-violet-700">Mini game</p><h3 className="mt-2 text-xl font-black text-ink">{card.title}</h3><p className="mt-2 leading-7 text-slate-600">{card.description}</p><p className="mt-4 text-sm font-bold text-violet-700">{card.duration}</p><button className="button-secondary mt-5" onClick={() => setActivity(card.title)} aria-label={`Play ${card.title}`}><Play size={16} /> Play</button></article>)}<article className="card p-6"><span className="grid h-12 w-12 place-items-center rounded-2xl bg-pink-100 text-pink-700"><Heart /></span><p className="mt-5 text-xs font-bold uppercase tracking-wide text-pink-700">Exercise guide · Follow at your own pace</p><h3 className="mt-2 text-xl font-black text-ink">Gentle sitting exercises</h3><p className="mt-2 leading-7 text-slate-600">Explore illustrated seated stretches and movements from the NHS.</p><a href="https://www.nhs.uk/live-well/exercise/sitting-exercises/" target="_blank" rel="noreferrer" className="button-secondary mt-5">View exercise guide <ExternalLink size={16} /></a></article></div></section>
+<section className="mt-10"><p className="eyebrow">03 · WELLNESS LIBRARY</p><h2 className="mt-2 text-2xl font-black text-ink">Articles and free guides.</h2><p className="mt-2 text-slate-600">{currentLevel === undefined ? "Explore these resources at your own pace." : "Showing resources for your current check-in level, plus general resources."}</p>{libraryError && <p role="alert" className="mt-3 text-sm text-red-700">Some resources could not be loaded. Please refresh to try again.</p>}<div className="mt-5 flex flex-wrap gap-2" aria-label="Filter wellness resources">{(["All", "Articles", "Free Guides"] as const).map((item) => <button key={item} type="button" aria-pressed={filter === item} onClick={() => setFilter(item)} className={filter === item ? "rounded-full bg-violet-700 px-4 py-2 text-sm font-bold text-white" : "rounded-full bg-violet-100 px-4 py-2 text-sm font-bold text-violet-800"}>{item}</button>)}</div><div className="mt-5 grid gap-5 md:grid-cols-3">{visible.map((resource) => <article key={resource.id} className="card flex flex-col p-6"><span className="grid h-11 w-11 place-items-center rounded-2xl bg-pink-100 text-pink-700"><BookOpen /></span><p className="mt-5 text-xs font-bold text-violet-700">{resource.resource_type ?? "Resource"}</p><h3 className="mt-2 text-lg font-black text-ink">{resource.title}</h3><p className="mt-3 flex-1 leading-7 text-slate-600">{resource.description}</p>{resource.url && <a href={resource.url} target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-violet-700">{resource.resource_type === "Free Guide" ? "Open guide" : "Read resource"} <ExternalLink size={16} /></a>}</article>)}</div>{visible.length === 0 && <p className="mt-5 text-slate-600">No resources in this category yet.</p>}</section></>}</div></main>{activity === "Number Puzzle" ? <NumberPuzzle close={() => setActivity("")} /> : activity && <ActivityDialog title={activity} close={() => setActivity("")} />}</>;
+}
+function NumberPuzzle({ close }: { close: () => void }) {
+  const [tiles, setTiles] = useState<number[]>([]);
+  const [selected, setSelected] = useState<number | null>(null);
+  useEffect(() => { setTiles(newNumberRound()); }, []);
+  const solved = tiles.length === 9 && tiles.every((tile, index) => tile === index + 1);
+  function choose(index: number) {
+    if (selected === null) { setSelected(index); return; }
+    setTiles((current) => { const next = [...current]; [next[selected], next[index]] = [next[index], next[selected]]; return next; });
+    setSelected(null);
+  }
+  function reset() { setTiles(newNumberRound(tiles)); setSelected(null); }
+  return <Modal labelledBy="puzzle-title" onClose={close}><h2 id="puzzle-title" className="text-2xl font-black text-ink">Number Puzzle</h2><p className="mt-3 leading-7 text-slate-600">Tap two tiles to swap them and put the numbers in order. There is no timer, so take your time.</p><div className="mt-5 grid grid-cols-3 gap-3">{tiles.map((tile, index) => <button key={tile} type="button" aria-label={`Number ${tile}, position ${index + 1}`} aria-pressed={selected === index} onClick={() => choose(index)} className={`aspect-square rounded-2xl text-2xl font-black transition ${selected === index ? "bg-violet-700 text-white ring-4 ring-violet-300" : "bg-violet-100 text-violet-800 hover:bg-violet-200"}`}>{tile}</button>)}</div><p aria-live="polite" className="mt-4 text-sm font-semibold text-violet-700">{solved ? "You put them all in order. Nice work!" : selected === null ? "Choose a tile to begin." : "Now choose a tile to swap with."}</p><div className="mt-6 flex gap-3"><button onClick={reset} className="button-secondary">Start over</button><button onClick={close} className="button-primary">Close</button></div></Modal>;
+}
+function ActivityDialog({ title, close }: { title: string; close: () => void }) {
+  const [deck, setDeck] = useState<string[]>([]);
+  const [open, setOpen] = useState<number[]>([]);
+  const [matched, setMatched] = useState<number[]>([]);
+  const [oddIndex, setOddIndex] = useState(0);
+  const [found, setFound] = useState(false);
+  const [attempted, setAttempted] = useState(false);
+  useEffect(() => { if (title === "Spot the Difference") setOddIndex(Math.floor(Math.random() * 9)); }, [title]);
+  useEffect(() => { if (title === "Memory Match") setDeck(shuffle(memoryCards)); }, [title]);
   useEffect(() => {
-    async function load() {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { location.assign("/login"); return; }
-      const { data: result } = await supabase.from("assessment_results").select("wellness_risk").eq("user_id", user.id).maybeSingle();
-      const recommendedRisk = result?.wellness_risk;
-      if (!recommendedRisk) {
-        setLoading(false);
-        return;
-      }
-      setRisk(recommendedRisk);
-      const allowedRiskLevels = recommendedRisk === "High" ? ["Low", "Mid", "High"] : recommendedRisk === "Mid" ? ["Low", "Mid"] : ["Low"];
-      const { data } = await supabase.from("wellness_resources").select("id,risk_level,title,resource_type,description,url").in("risk_level", allowedRiskLevels);
-      setResources(data ?? []);
-      setLoading(false);
-    }
-    load();
-  }, []);
-
-  const types = ["All", ...Array.from(new Set(resources.map((resource) => resource.resource_type).filter(Boolean) as string[]))];
-  const visibleResources = useMemo(() => resources.filter((resource) => type === "All" || resource.resource_type === type), [resources, type]);
-
-  return <><Nav /><main className="mx-auto max-w-5xl px-5 py-14"><p className="eyebrow">Study Wellness</p><h1 className="mt-3 text-4xl font-black text-ink">Take care of your energy, too.</h1>{loading ? <p className="mt-5 text-slate-600">Finding resources for you...</p> : !risk ? <section className="card mt-8 max-w-2xl p-7"><ShieldCheck className="text-pink-700" /><h2 className="mt-4 text-xl font-black text-ink">Start with Career Match</h2><p className="mt-2 leading-7 text-slate-600">Your Career Match includes a short wellbeing check-in. Complete it first and we will use your answers to choose the level of wellness resources shown here.</p><a href="/assessment" className="button-primary mt-5">Take Career Match</a></section> : <><div className="mt-5 flex max-w-2xl gap-3 rounded-2xl bg-pink-50 p-5 text-pink-950"><ShieldCheck className="shrink-0 text-pink-700" /><p className="leading-6">Your Career Match wellbeing check-in placed you in the <strong>{risk.toLowerCase()}-support</strong> level, so these resources are tailored to that level. This is general study support, not medical advice.</p></div><div className="mt-7 flex flex-wrap gap-2">{types.map((item) => <button onClick={() => setType(item)} key={item} className={`rounded-full px-4 py-2 text-sm font-bold ${type === item ? "bg-violet-700 text-white" : "bg-violet-100 text-violet-800"}`}>{item}</button>)}</div><div className="mt-7 grid gap-5 md:grid-cols-3">{visibleResources.map((resource) => <article key={resource.id} className="card p-6"><div className="flex justify-between gap-3"><span className="rounded-2xl bg-pink-100 p-3 text-pink-700"><Heart /></span><span className="text-right text-xs font-bold text-violet-700">{resource.resource_type ?? "Resource"}</span></div><h2 className="mt-6 text-xl font-extrabold text-ink">{resource.title}</h2><p className="mt-3 leading-7 text-slate-600">{resource.description}</p>{resource.url && <a href={resource.url} target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-violet-700">Explore resource <ExternalLink size={17} /></a>}</article>)}</div>{visibleResources.length === 0 && <p className="mt-8 text-slate-600">Resources for your level are not available just yet. Please check back soon.</p>}</>}</main></>;
+    if (open.length !== 2) return;
+    const [first, second] = open;
+    const timeout = window.setTimeout(() => { if (deck[first] === deck[second]) setMatched((current) => [...current, first, second]); setOpen([]); }, 700);
+    return () => window.clearTimeout(timeout);
+  }, [open, deck]);
+  function select(index: number) { if (open.length === 2 || open.includes(index) || matched.includes(index)) return; setOpen((current) => [...current, index]); }
+  function restart() { let next: string[]; do { next = shuffle(memoryCards); } while (next.every((item, i) => item === deck[i])); setDeck(next); setOpen([]); setMatched([]); }
+  return <Modal labelledBy="activity-title" onClose={close}><h2 id="activity-title" className="text-2xl font-black text-ink">{title}</h2>{title === "Memory Match" ? <><p className="mt-3 leading-7 text-slate-600">Turn over two cards to find matching pairs. Take your time.</p><div className="mt-5 grid grid-cols-4 gap-3">{deck.map((symbol, index) => { const revealed = open.includes(index) || matched.includes(index); return <button key={index} type="button" onClick={() => select(index)} disabled={matched.includes(index)} aria-label={revealed ? `Card ${index + 1}: ${symbol}${matched.includes(index) ? ", matched" : ""}` : `Reveal card ${index + 1}`} aria-pressed={revealed} className={`grid aspect-square place-items-center rounded-xl text-2xl transition ${revealed ? "bg-violet-100" : "bg-violet-700 text-white hover:bg-violet-600"}`}>{revealed ? symbol : "?"}</button>; })}</div><p aria-live="polite" className="mt-4 text-sm font-semibold text-violet-700">{matched.length === deck.length && deck.length > 0 ? "All pairs found. Nice work!" : `${matched.length / 2} of 6 pairs found`}</p><div className="mt-6 flex gap-3"><button onClick={restart} className="button-secondary">Play again</button><button onClick={close} className="button-primary">Close</button></div></> : <><p className="mt-3 leading-7 text-slate-600">Find and select the butterfly among the flowers.</p><div className="mt-5 grid grid-cols-3 gap-3">{Array.from({ length: 9 }, (_, index) => <button key={index} type="button" aria-label={`${index === oddIndex ? "Butterfly" : "Flower"}, position ${index + 1}`} onClick={() => { setAttempted(true); if (index === oddIndex) setFound(true); }} className="grid aspect-square place-items-center rounded-xl bg-violet-100 text-3xl hover:bg-violet-200">{index === oddIndex ? "🦋" : "🌸"}</button>)}</div><p aria-live="polite" className="mt-4 text-sm font-semibold text-violet-700">{found ? "You found it!" : attempted ? "Not quite; try another." : "Take your time."}</p><div className="mt-6 flex gap-3"><button onClick={() => { setOddIndex((current) => { const next = Math.floor(Math.random() * 8); return next >= current ? next + 1 : next; }); setFound(false); setAttempted(false); }} className="button-secondary">Play again</button><button onClick={close} className="button-primary">Close</button></div></>}</Modal>;
 }
